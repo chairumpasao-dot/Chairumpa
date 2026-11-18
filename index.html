@@ -232,7 +232,6 @@
     const SHEET_GID = "1285112231";
 
     // ลำดับคอลัมน์เริ่มจาก 0: A=0, B=1, C=2 ...
-    // อ้างอิงหัวตารางจากภาพที่ส่งมา
     const COL = {
       fiscalYear: 0,            // A ปีงบประมาณ
       jobId: 1,                 // B รหัสงาน
@@ -249,7 +248,7 @@
       recommendation: 12,       // M ลักษณะข้อเสนอแนะ
       recommendationOther: 13,  // N คำอธิบายกรณีอื่น
       auditResult: 14,          // O การแจ้งผลการตรวจสอบ
-      auditResultOther: 15      // P รายละเอียด/กรณีที่แจ้งผลการตรวจสอบ
+      auditResultOther: 15      // P รายละเอียดเพิ่มเติม
     };
 
     const map = L.map("map").setView([15.8, 102.0], 6);
@@ -259,7 +258,6 @@
       attribution: "&copy; OpenStreetMap"
     }).addTo(map);
 
-    // ใช้ layerGroup ไม่ต้องโหลดปลั๊กอินรวมหมุดเพิ่มเติม
     const markerGroup = L.layerGroup().addTo(map);
 
     const searchInput = document.getElementById("search");
@@ -317,7 +315,7 @@
     }
 
     function buildRecord(row, rowNumber) {
-      // Leaflet รับพิกัดตามลำดับ [ละติจูด, ลองจิจูด]
+      // Leaflet ใช้ลำดับพิกัด [ละติจูด, ลองจิจูด]
       const lat = parseCoordinate(cellValue(row, COL.latitude));
       const lng = parseCoordinate(cellValue(row, COL.longitude));
 
@@ -330,6 +328,7 @@
         reportName: cellValue(row, COL.reportName),
         unitCode: cellValue(row, COL.unitCode),
         unitName: cellValue(row, COL.unitName),
+        observation: cellValue(row, COL.observation),
         defectType: cellValue(row, COL.defectType),
         recommendation: cellValue(row, COL.recommendation),
         recommendationOther: cellValue(row, COL.recommendationOther),
@@ -361,9 +360,7 @@
     }
 
     function displayValue(value) {
-      return value
-        ? escapeHtml(value)
-        : "ไม่ระบุ";
+      return value ? escapeHtml(value) : "-";
     }
 
     function createGroupPopup(records) {
@@ -376,6 +373,9 @@
           record.auditResult,
           record.auditResultOther
         ].filter(Boolean).join(" — ");
+
+        const recommendation =
+          record.recommendationOther || record.recommendation;
 
         return `
           <div class="popup-record">
@@ -392,13 +392,18 @@
             </div>
 
             <div class="popup-row">
+              <span class="popup-label">ข้อสังเกต:</span>
+              ${displayValue(record.observation)}
+            </div>
+
+            <div class="popup-row">
               <span class="popup-label">ประเภทข้อบกพร่อง:</span>
               ${displayValue(record.defectType)}
             </div>
 
             <div class="popup-row">
               <span class="popup-label">ลักษณะข้อเสนอแนะ:</span>
-              ${displayValue(record.recommendation)}
+              ${displayValue(recommendation)}
             </div>
 
             <div class="popup-row">
@@ -436,6 +441,7 @@
           record.reportName,
           record.unitCode,
           record.unitName,
+          record.observation,
           record.defectType,
           record.recommendation,
           record.recommendationOther,
