@@ -122,9 +122,24 @@
       vertical-align: -1px;
     }
 
+    .map-marker {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border: 2px solid #fff;
+      border-radius: 50%;
+      background: #1685d1;
+      color: #fff;
+      box-shadow: 0 1px 5px #3338;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
     .popup {
       min-width: 220px;
-      max-width: 330px;
+      max-width: 340px;
       line-height: 1.55;
       overflow-wrap: anywhere;
     }
@@ -133,6 +148,14 @@
       margin-bottom: 6px;
       font-size: 15px;
       font-weight: 700;
+    }
+
+    .popup-record {
+      padding: 8px 0;
+    }
+
+    .popup-record + .popup-record {
+      border-top: 1px solid #ddd;
     }
 
     .popup-row {
@@ -168,7 +191,7 @@
 
   <section id="panel">
     <h1>แผนที่รายงานการตรวจสอบ</h1>
-    <p class="subtitle">คลิกหมุดบนแผนที่เพื่อดูรายละเอียด</p>
+    <p class="subtitle">คลิกหมุดเพื่อดูรายละเอียดรายการตามรหัสงาน</p>
 
     <div class="filters">
       <input
@@ -204,12 +227,12 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <script>
-    // Google Sheet และ GID ของแท็บที่ต้องการแสดง
+    // Google Sheet และ GID ของแท็บข้อมูล
     const SHEET_ID = "1zgK-gxqQWTkt59KfFM7NQr1jRpYTWNdfASLQ7a3G9Yw";
     const SHEET_GID = "1285112231";
 
     // ลำดับคอลัมน์เริ่มจาก 0: A=0, B=1, C=2 ...
-    // อ้างอิงจากหัวตารางในภาพที่ส่งมา
+    // อ้างอิงหัวตารางจากภาพที่ส่งมา
     const COL = {
       fiscalYear: 0,            // A ปีงบประมาณ
       jobId: 1,                 // B รหัสงาน
@@ -226,7 +249,7 @@
       recommendation: 12,       // M ลักษณะข้อเสนอแนะ
       recommendationOther: 13,  // N คำอธิบายกรณีอื่น
       auditResult: 14,          // O การแจ้งผลการตรวจสอบ
-      auditResultOther: 15      // P รายละเอียดเพิ่มเติม
+      auditResultOther: 15      // P รายละเอียด/กรณีที่แจ้งผลการตรวจสอบ
     };
 
     const map = L.map("map").setView([15.8, 102.0], 6);
@@ -236,7 +259,7 @@
       attribution: "&copy; OpenStreetMap"
     }).addTo(map);
 
-    // ใช้ layerGroup แทน MarkerCluster เพื่อลดปัญหาไลบรารีหมุด
+    // ใช้ layerGroup ไม่ต้องโหลดปลั๊กอินรวมหมุดเพิ่มเติม
     const markerGroup = L.layerGroup().addTo(map);
 
     const searchInput = document.getElementById("search");
@@ -294,7 +317,7 @@
     }
 
     function buildRecord(row, rowNumber) {
-      // Leaflet ใช้ลำดับ [ละติจูด, ลองจิจูด]
+      // Leaflet รับพิกัดตามลำดับ [ละติจูด, ลองจิจูด]
       const lat = parseCoordinate(cellValue(row, COL.latitude));
       const lng = parseCoordinate(cellValue(row, COL.longitude));
 
@@ -338,41 +361,62 @@
     }
 
     function displayValue(value) {
-      return value ? escapeHtml(value) : "ไม่ระบุ";
+      return value
+        ? escapeHtml(value)
+        : "ไม่ระบุ";
     }
 
-    function createPopup(record) {
-      const unit = [record.unitCode, record.unitName]
-        .filter(Boolean)
-        .join(" — ");
+    function createGroupPopup(records) {
+      const recordHtml = records.map((record, index) => {
+        const unit = [record.unitCode, record.unitName]
+          .filter(Boolean)
+          .join(" — ");
 
-      const fields = [
-        ["รหัสงาน", record.jobId],
-        ["หน่วยรับตรวจ", unit],
-        ["ประเภทข้อบกพร่อง", record.defectType],
-        [
-          "ลักษณะข้อเสนอแนะ",
-          record.recommendationOther || record.recommendation
-        ],
-        [
-          "มาตราที่แจ้งผลตรวจสอบ",
+        const auditResult = [
+          record.auditResult,
           record.auditResultOther
-            ? `${record.auditResult} — ${record.auditResultOther}`
-            : record.auditResult
-        ]
-      ];
+        ].filter(Boolean).join(" — ");
 
-      const rows = fields.map(([label, value]) => `
-        <div class="popup-row">
-          <span class="popup-label">${escapeHtml(label)}:</span>
-          ${displayValue(value)}
-        </div>
-      `).join("");
+        return `
+          <div class="popup-record">
+            <div class="popup-title">รายการที่ ${index + 1}</div>
+
+            <div class="popup-row">
+              <span class="popup-label">รหัสงาน:</span>
+              ${displayValue(record.jobId)}
+            </div>
+
+            <div class="popup-row">
+              <span class="popup-label">หน่วยรับตรวจ:</span>
+              ${displayValue(unit)}
+            </div>
+
+            <div class="popup-row">
+              <span class="popup-label">ประเภทข้อบกพร่อง:</span>
+              ${displayValue(record.defectType)}
+            </div>
+
+            <div class="popup-row">
+              <span class="popup-label">ลักษณะข้อเสนอแนะ:</span>
+              ${displayValue(record.recommendation)}
+            </div>
+
+            <div class="popup-row">
+              <span class="popup-label">มาตราที่แจ้งผลตรวจสอบ:</span>
+              ${displayValue(auditResult)}
+            </div>
+          </div>
+        `;
+      }).join("");
 
       return `
         <div class="popup">
-          <div class="popup-title">รายละเอียดรายการตรวจสอบ</div>
-          ${rows}
+          <div class="popup-title">
+            ${records.length > 1
+              ? `พบ ${records.length} รหัสงานที่พิกัดนี้`
+              : "รายละเอียดรายการตรวจสอบ"}
+          </div>
+          ${recordHtml}
         </div>
       `;
     }
@@ -394,6 +438,7 @@
           record.unitName,
           record.defectType,
           record.recommendation,
+          record.recommendationOther,
           record.auditResult,
           record.auditResultOther
         ].join(" ").toLocaleLowerCase("th");
@@ -421,32 +466,56 @@
       const visibleRecords = getFilteredRecords();
       markerGroup.clearLayers();
 
+      // รวมรายการที่มีพิกัดเดียวกันให้เป็นหมุดเดียว
+      const groups = new Map();
+
       visibleRecords.forEach(record => {
-        const marker = L.circleMarker(
-          [record.lat, record.lng],
-          {
-            radius: 8,
-            color: "#ffffff",
-            weight: 2,
-            fillColor: "#1685d1",
-            fillOpacity: 0.95
-          }
+        const key = `${record.lat}|${record.lng}`;
+
+        if (!groups.has(key)) {
+          groups.set(key, []);
+        }
+
+        groups.get(key).push(record);
+      });
+
+      for (const records of groups.values()) {
+        const firstRecord = records[0];
+
+        const markerIcon = L.divIcon({
+          className: "",
+          html: `
+            <div class="map-marker">
+              ${records.length > 1 ? records.length : "•"}
+            </div>
+          `,
+          iconSize: [32, 32],
+          iconAnchor: [16, 16],
+          popupAnchor: [0, -16]
+        });
+
+        const marker = L.marker(
+          [firstRecord.lat, firstRecord.lng],
+          { icon: markerIcon }
         );
 
-        marker.bindPopup(createPopup(record), {
+        marker.bindPopup(createGroupPopup(records), {
           maxWidth: 360
         });
 
         markerGroup.addLayer(marker);
-      });
+      }
 
       summary.textContent =
-        `แสดง ${visibleRecords.length.toLocaleString("th-TH")} ` +
-        `จาก ${allRecords.length.toLocaleString("th-TH")} รายการที่มีพิกัด`;
+        `แสดง ${visibleRecords.length.toLocaleString("th-TH")} รายการ ` +
+        `ใน ${groups.size.toLocaleString("th-TH")} พิกัด`;
 
-      if (visibleRecords.length > 0 && zoomToResults) {
+      if (groups.size > 0 && zoomToResults) {
         const bounds = L.latLngBounds(
-          visibleRecords.map(record => [record.lat, record.lng])
+          [...groups.values()].map(records => [
+            records[0].lat,
+            records[0].lng
+          ])
         );
 
         map.fitBounds(bounds, {
@@ -481,13 +550,10 @@
       }
 
       const rows = response.table?.rows || [];
-
-      // แปลงแถวข้อมูลทั้งหมดเป็นรายการ
       const records = rows.map((row, index) =>
         buildRecord(row, index + 2)
       );
 
-      // ใช้เฉพาะแถวที่มีพิกัดถูกต้อง
       allRecords = records.filter(record =>
         Number.isFinite(record.lat) &&
         Number.isFinite(record.lng) &&
@@ -518,16 +584,15 @@
       if (allRecords.length === 0) {
         showError(
           "โหลดชีตได้ แต่ไม่พบรายการที่มีพิกัดถูกต้อง\n" +
-          "ตรวจสอบว่าคอลัมน์ C เป็นลองจิจูด และ D เป็นละติจูด"
+          "ตรวจสอบว่าคอลัมน์ C เป็นลองจิจูด และคอลัมน์ D เป็นละติจูด"
         );
         return;
       }
 
       errorBox.textContent = "";
-
       details.textContent = skippedCount > 0
         ? `ข้าม ${skippedCount} แถวที่ไม่มีพิกัดหรือพิกัดไม่ถูกต้อง`
-        : "ใช้ตัวกรองปีงบประมาณ หน่วยรับตรวจ และการแจ้งผลการตรวจสอบได้";
+        : "หมุดที่พิกัดซ้ำจะแสดงจำนวนรายการ และรวมรายละเอียดเมื่อคลิก";
 
       renderMap(true);
     };
@@ -548,7 +613,7 @@
         clearTimeout(loadTimeout);
         showError(
           "เชื่อมต่อ Google Sheets ไม่สำเร็จ\n" +
-          "ตรวจสอบการเชื่อมต่ออินเทอร์เน็ตและสิทธิ์การแชร์ชีต"
+          "ตรวจสอบอินเทอร์เน็ต GID และสิทธิ์การแชร์ชีต"
         );
       };
 
